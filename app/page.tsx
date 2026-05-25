@@ -126,7 +126,9 @@ const registrosHoy = historial.filter(
   (h) => h.fecha === hoy
 );
 
-const totalRutinasHoy = registrosHoy.length;
+const totalRutinasHoy = new Set(
+  registrosHoy.map((h) => h.rutina)
+).size;
 
 const colaboradoresActivos = new Set(
   registrosHoy.map((h) => h.colaborador)
