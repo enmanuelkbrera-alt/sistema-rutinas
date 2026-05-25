@@ -119,7 +119,11 @@ useEffect(() => {
     alert('Rutinas guardadas');
   };
 
-  const totalRutinasHoy = historial.length;
+const hoy = new Date().toLocaleDateString();
+
+const totalRutinasHoy = historial.filter(
+  (h) => h.fecha === hoy
+).length;
 
   const colaboradoresActivos = new Set(historial.map((h) => h.colaborador))
     .size;
