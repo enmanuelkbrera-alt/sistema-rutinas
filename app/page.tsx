@@ -8,6 +8,7 @@ export default function SistemaRutinas() {
     'Amaurys Mendez',
     'Aaron Guzman',
     'Kelly Duran',
+    'Sonny Guzman',
   ];
 
   const tareasBase = [
