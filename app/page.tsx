@@ -119,32 +119,38 @@ useEffect(() => {
     alert('Rutinas guardadas');
   };
 
+  
 const hoy = new Date().toLocaleDateString();
 
-const totalRutinasHoy = historial.filter(
+const registrosHoy = historial.filter(
   (h) => h.fecha === hoy
+);
+
+const totalRutinasHoy = registrosHoy.length;
+
+const colaboradoresActivos = new Set(
+  registrosHoy.map((h) => h.colaborador)
+).size;
+
+const rutinasColaborador = registrosHoy.filter(
+  (h) => h.colaborador === colaborador
 ).length;
 
-  const colaboradoresActivos = new Set(historial.map((h) => h.colaborador))
-    .size;
+const sinActividad = colaboradores.length - colaboradoresActivos;
 
-  const rutinasColaborador = historial.filter(
-    (h) => h.colaborador === colaborador
-  ).length;
+const estadoColaboradores = useMemo(() => {
+  return colaboradores.map((c) => {
+    const registros = registrosHoy.filter(
+      (h) => h.colaborador === c
+    );
 
-  const sinActividad = colaboradores.length - colaboradoresActivos;
-
-  const estadoColaboradores = useMemo(() => {
-    return colaboradores.map((c) => {
-      const registros = historial.filter((h) => h.colaborador === c);
-
-      return {
-        nombre: c,
-        total: registros.length,
-        estado: registros.length > 0 ? 'ACTIVO' : 'SIN ACTIVIDAD',
-      };
-    });
-  }, [historial]);
+    return {
+      nombre: c,
+      total: registros.length,
+      estado: registros.length > 0 ? 'ACTIVO' : 'SIN ACTIVIDAD',
+    };
+  });
+}, [registrosHoy]);
 
   return (
     <div className="min-h-screen bg-gray-100 p-8">
