@@ -13,6 +13,7 @@ export default function SistemaRutinas() {
     'Enmanuel Francisco',
     'Mayelin Espinal',
     'Shayra Cabrera',
+    'Jose Daniel',
   ];
 
   const tareasBase = [
