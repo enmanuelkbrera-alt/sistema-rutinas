@@ -771,67 +771,86 @@ export default function SistemaRutinas() {
 
               <div className="max-h-[500px] overflow-auto">
                 <table className="w-full">
-                  <thead>
-                    <tr className="border-b text-left">
-                      <th className="py-4">
-                        Tipo
-                      </th>
+                 <thead>
+  <tr className="border-b text-left">
+    <th className="py-4">
+      Compra
+    </th>
 
-                      <th className="py-4">
-                        Comentario
-                      </th>
+    <th className="py-4">
+      Tipo
+    </th>
 
-                      <th className="py-4">
-                        Pendiente
-                      </th>
+    <th className="py-4">
+      Comentario
+    </th>
 
-                      <th className="py-4">
-                        Prioridad
-                      </th>
-                    </tr>
-                  </thead>
+    <th className="py-4">
+      Pendiente
+    </th>
 
-                  <tbody>
-                    {compras.map(
-                      (c, index) => (
-                        <tr
-                          key={index}
-                          className="border-b"
-                        >
-                          <td className="py-4">
-                            {
-                              c.tipoEntrega
-                            }
-                          </td>
+    <th className="py-4">
+      Prioridad
+    </th>
+  </tr>
+</thead>
 
-                          <td className="py-4">
-                            {c.comentario
-                              ? 'SI'
-                              : 'NO'}
-                          </td>
+<tbody>
+  {compras.map((c, index) => (
+    <tr
+      key={index}
+      className={`border-b ${
+        c.prioridad === 'ALTA'
+          ? 'bg-red-50'
+          : ''
+      }`}
+    >
+      <td className="py-4 text-sm">
+        {Object.values(c)
+          .slice(0, 3)
+          .join(' | ')}
+      </td>
 
-                          <td className="py-4">
-                            {c.pendiente
-                              ? 'SI'
-                              : 'NO'}
-                          </td>
+      <td className="py-4">
+        {c.tipoEntrega}
+      </td>
 
-                          <td
-                            className={`py-4 font-bold ${
-                              c.prioridad ===
-                              'ALTA'
-                                ? 'text-red-500'
-                                : 'text-green-600'
-                            }`}
-                          >
-                            {
-                              c.prioridad
-                            }
-                          </td>
-                        </tr>
-                      )
-                    )}
-                  </tbody>
+      <td className="py-4">
+        {c.comentario ? (
+          <span className="text-green-600 font-bold">
+            SI
+          </span>
+        ) : (
+          <span className="text-red-500 font-bold">
+            NO
+          </span>
+        )}
+      </td>
+
+      <td className="py-4">
+        {c.pendiente ? (
+          <span className="text-orange-500 font-bold">
+            PENDIENTE
+          </span>
+        ) : (
+          <span className="text-green-600">
+            COMPLETO
+          </span>
+        )}
+      </td>
+
+      <td
+        className={`py-4 font-bold ${
+          c.prioridad === 'ALTA'
+            ? 'text-red-500'
+            : 'text-green-600'
+        }`}
+      >
+        {c.prioridad}
+      </td>
+    </tr>
+  ))}
+</tbody>
                 </table>
               </div>
             </>
