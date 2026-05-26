@@ -1,6 +1,7 @@
 'use client';
 import { supabase } from './lib/supabase';
 import { useEffect, useMemo, useState } from 'react';
+import * as XLSX from 'xlsx';
 
 export default function SistemaRutinas() {
   const colaboradores = [
@@ -33,6 +34,7 @@ export default function SistemaRutinas() {
 
   const [colaborador, setColaborador] = useState('');
   const [busqueda, setBusqueda] = useState('');
+  const [compras, setCompras] = useState<any[]>([]);
 
   const [historial, setHistorial] = useState<any[]>([]);
 
@@ -61,6 +63,70 @@ export default function SistemaRutinas() {
   useEffect(() => {
     cargarHistorial();
   }, []);
+  const importarExcel = (e: any) => {
+  const file = e.target.files[0];
+
+  if (!file) return;
+
+  const reader = new FileReader();
+
+  reader.onload = (evt: any) => {
+    const data = new Uint8Array(evt.target.result);
+
+    const workbook = XLSX.read(data, { type: 'array' });
+
+    const sheetName = workbook.SheetNames[0];
+
+    const worksheet = workbook.Sheets[sheetName];
+
+    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+    const depurado = jsonData.map((item: any) => {
+      const transporteTexto = JSON.stringify(item)
+        .toLowerCase();
+
+      const tieneTransporteSantiago = transporteTexto.includes(
+        'transporte santiago'
+      );
+
+      const tieneComentario =
+        transporteTexto.includes('coment') ||
+        transporteTexto.includes('llamad') ||
+        transporteTexto.includes('contact');
+
+      const tienePendiente =
+        transporteTexto.includes('pendiente') ||
+        transporteTexto.includes('reserva') ||
+        transporteTexto.includes('stock');
+
+      const esPaqueteria =
+        transporteTexto.includes('paqueteria');
+
+      return {
+        ...item,
+
+        tipoEntrega: tieneTransporteSantiago
+          ? 'RETIRO EN TIENDA'
+          : 'TRANSPORTE PAGO',
+
+        comentario: tieneComentario,
+
+        pendiente: tienePendiente,
+
+        prioridad:
+          !tieneTransporteSantiago && tienePendiente
+            ? 'ALTA'
+            : 'NORMAL',
+
+        paqueteria: esPaqueteria,
+      };
+    });
+
+    setCompras(depurado);
+  };
+
+  reader.readAsArrayBuffer(file);
+};
 
   const toggleTarea = (index: number) => {
     const copia = [...tareas];
@@ -217,6 +283,36 @@ export default function SistemaRutinas() {
           </div>
         </div>
 
+        const totalCompras = compras.length;
+
+const comprasComentadas = compras.filter(
+  (c) => c.comentario
+).length;
+
+const comprasSinComentario = compras.filter(
+  (c) => !c.comentario
+).length;
+
+const pendientes = compras.filter(
+  (c) => c.pendiente
+).length;
+
+const prioridadAlta = compras.filter(
+  (c) => c.prioridad === 'ALTA'
+).length;
+
+const paqueterias = compras.filter(
+  (c) => c.paqueteria
+).length;
+
+const transportePago = compras.filter(
+  (c) => c.tipoEntrega === 'TRANSPORTE PAGO'
+).length;
+
+const retiroTienda = compras.filter(
+  (c) => c.tipoEntrega === 'RETIRO EN TIENDA'
+).length;
+
         {/* CONTADORES */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-2xl shadow p-6">
@@ -293,6 +389,96 @@ export default function SistemaRutinas() {
             ))}
           </div>
         </div>
+
+        <div className="bg-white rounded-3xl shadow-xl p-8 mb-8">
+  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+    <div>
+      <h2 className="text-2xl font-bold">
+        Control de Compras
+      </h2>
+
+      <p className="text-gray-500 mt-1">
+        Importa el Excel para analizar compras,
+        comentarios y pendientes.
+      </p>
+    </div>
+
+    <input
+      type="file"
+      accept=".xlsx,.xls,.csv"
+      onChange={importarExcel}
+      className="border p-3 rounded-xl"
+    />
+  </div>
+
+  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    <div className="border rounded-2xl p-4">
+      <p className="text-gray-500">Total compras</p>
+      <p className="text-4xl font-bold">
+        {totalCompras}
+      </p>
+    </div>
+
+    <div className="border rounded-2xl p-4">
+      <p className="text-gray-500">
+        Sin comentario
+      </p>
+      <p className="text-4xl font-bold text-red-500">
+        {comprasSinComentario}
+      </p>
+    </div>
+
+    <div className="border rounded-2xl p-4">
+      <p className="text-gray-500">
+        Comentadas
+      </p>
+      <p className="text-4xl font-bold text-green-600">
+        {comprasComentadas}
+      </p>
+    </div>
+
+    <div className="border rounded-2xl p-4">
+      <p className="text-gray-500">
+        Prioridad alta
+      </p>
+      <p className="text-4xl font-bold text-orange-500">
+        {prioridadAlta}
+      </p>
+    </div>
+  </div>
+
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div className="border rounded-2xl p-4">
+      <p className="text-gray-500">
+        Mercancía pendiente
+      </p>
+
+      <p className="text-3xl font-bold">
+        {pendientes}
+      </p>
+    </div>
+
+    <div className="border rounded-2xl p-4">
+      <p className="text-gray-500">
+        Transporte pago
+      </p>
+
+      <p className="text-3xl font-bold">
+        {transportePago}
+      </p>
+    </div>
+
+    <div className="border rounded-2xl p-4">
+      <p className="text-gray-500">
+        Retiro en tienda
+      </p>
+
+      <p className="text-3xl font-bold">
+        {retiroTienda}
+      </p>
+    </div>
+  </div>
+</div>
 
         {/* REGISTRO */}
         <div className="bg-white rounded-3xl shadow-xl p-8 mb-8">
