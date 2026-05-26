@@ -1,4 +1,5 @@
 'use client';
+
 import { supabase } from './lib/supabase';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -43,6 +44,16 @@ export default function SistemaRutinas() {
     }))
   );
 
+  const obtenerFecha = () => {
+    const fecha = new Date();
+
+    return fecha.toISOString().split('T')[0];
+  };
+
+  const obtenerHora = () => {
+    return new Date().toLocaleTimeString();
+  };
+
   const cargarHistorial = async () => {
     const { data, error } = await supabase
       .from('rutinas')
@@ -69,7 +80,10 @@ export default function SistemaRutinas() {
     setTareas(copia);
   };
 
-  const actualizarObservacion = (index: number, valor: string) => {
+  const actualizarObservacion = (
+    index: number,
+    valor: string
+  ) => {
     const copia = [...tareas];
 
     copia[index].observacion = valor;
@@ -93,20 +107,24 @@ export default function SistemaRutinas() {
       return;
     }
 
-    const realizadas = tareas.filter((t) => t.realizada);
+    const realizadas = tareas.filter(
+      (t) => t.realizada
+    );
 
     if (realizadas.length === 0) {
       alert('Selecciona al menos una rutina');
       return;
     }
 
-    const nuevosRegistros = realizadas.map((t) => ({
-      colaborador,
-      rutina: t.nombre,
-      observacion: t.observacion || '',
-      fecha: new Date().toLocaleDateString(),
-      hora: new Date().toLocaleTimeString(),
-    }));
+    const nuevosRegistros = realizadas.map(
+      (t) => ({
+        colaborador,
+        rutina: t.nombre,
+        observacion: t.observacion || '',
+        fecha: obtenerFecha(),
+        hora: obtenerHora(),
+      })
+    );
 
     const { error } = await supabase
       .from('rutinas')
@@ -125,59 +143,85 @@ export default function SistemaRutinas() {
     alert('Rutinas guardadas');
   };
 
-  const hoy = new Date().toLocaleDateString();
+  const hoy = obtenerFecha();
 
   const registrosHoy = historial.filter(
     (h) => h.fecha === hoy
   );
 
-  // Rutinas únicas del día
   const totalRutinasHoy = new Set(
     registrosHoy.map((h) => h.rutina)
   ).size;
 
-  // Colaboradores que hicieron algo hoy
-  const colaboradoresActivos = new Set(
-    registrosHoy.map((h) => h.colaborador)
-  ).size;
+  const colaboradoresActivos =
+    new Set(
+      registrosHoy.map(
+        (h) => h.colaborador
+      )
+    ).size;
 
-  // Rutinas del colaborador seleccionado hoy
-  const rutinasColaborador = new Set(
-    registrosHoy
-      .filter((h) => h.colaborador === colaborador)
-      .map((h) => h.rutina)
-  ).size;
+  const rutinasColaborador =
+    new Set(
+      registrosHoy
+        .filter(
+          (h) =>
+            h.colaborador === colaborador
+        )
+        .map((h) => h.rutina)
+    ).size;
 
-  const sinActividad = colaboradores.length - colaboradoresActivos;
+  const sinActividad =
+    colaboradores.length -
+    colaboradoresActivos;
 
-  const estadoColaboradores = useMemo(() => {
-    return colaboradores.map((c) => {
-      const registros = registrosHoy.filter(
-        (h) => h.colaborador === c
+  const estadoColaboradores =
+    useMemo(() => {
+      return colaboradores.map((c) => {
+        const registros =
+          registrosHoy.filter(
+            (h) =>
+              h.colaborador === c
+          );
+
+        return {
+          nombre: c,
+          total: new Set(
+            registros.map(
+              (h) => h.rutina
+            )
+          ).size,
+
+          estado:
+            registros.length > 0
+              ? 'ACTIVO'
+              : 'SIN ACTIVIDAD',
+        };
+      });
+    }, [registrosHoy]);
+
+  const historialFiltrado =
+    historial.filter((h) => {
+      const texto =
+        busqueda.toLowerCase();
+
+      return (
+        h.colaborador
+          ?.toLowerCase()
+          .includes(texto) ||
+        h.rutina
+          ?.toLowerCase()
+          .includes(texto) ||
+        h.observacion
+          ?.toLowerCase()
+          .includes(texto) ||
+        h.fecha
+          ?.toLowerCase()
+          .includes(texto) ||
+        h.hora
+          ?.toLowerCase()
+          .includes(texto)
       );
-
-      return {
-        nombre: c,
-        total: new Set(registros.map((h) => h.rutina)).size,
-        estado:
-          registros.length > 0
-            ? 'ACTIVO'
-            : 'SIN ACTIVIDAD',
-      };
     });
-  }, [registrosHoy]);
-
-  // BUSCADOR
-  const historialFiltrado = historial.filter((h) => {
-    const texto = busqueda.toLowerCase();
-
-    return (
-      h.colaborador?.toLowerCase().includes(texto) ||
-      h.rutina?.toLowerCase().includes(texto) ||
-      h.observacion?.toLowerCase().includes(texto) ||
-      h.fecha?.toLowerCase().includes(texto)
-    );
-  });
 
   return (
     <div className="min-h-screen bg-gray-100 p-8">
@@ -201,13 +245,20 @@ export default function SistemaRutinas() {
 
               <select
                 value={colaborador}
-                onChange={(e) => setColaborador(e.target.value)}
+                onChange={(e) =>
+                  setColaborador(e.target.value)
+                }
                 className="w-full border rounded-xl p-3"
               >
-                <option value="">Seleccionar</option>
+                <option value="">
+                  Seleccionar
+                </option>
 
                 {colaboradores.map((c) => (
-                  <option key={c} value={c}>
+                  <option
+                    key={c}
+                    value={c}
+                  >
                     {c}
                   </option>
                 ))}
@@ -259,37 +310,39 @@ export default function SistemaRutinas() {
           </div>
         </div>
 
-        {/* ESTADO COLABORADORES */}
+        {/* ESTADO */}
         <div className="bg-white rounded-3xl shadow-xl p-8 mb-8">
           <h2 className="text-2xl font-bold mb-6">
             Estado de colaboradores
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {estadoColaboradores.map((c, index) => (
-              <div
-                key={index}
-                className="border rounded-2xl p-4"
-              >
-                <h3 className="font-bold text-lg">
-                  {c.nombre}
-                </h3>
-
-                <p className="text-gray-500">
-                  Rutinas: {c.total}
-                </p>
-
-                <p
-                  className={`font-bold ${
-                    c.estado === 'ACTIVO'
-                      ? 'text-green-600'
-                      : 'text-red-500'
-                  }`}
+            {estadoColaboradores.map(
+              (c, index) => (
+                <div
+                  key={index}
+                  className="border rounded-2xl p-4"
                 >
-                  {c.estado}
-                </p>
-              </div>
-            ))}
+                  <h3 className="font-bold text-lg">
+                    {c.nombre}
+                  </h3>
+
+                  <p className="text-gray-500">
+                    Rutinas: {c.total}
+                  </p>
+
+                  <p
+                    className={`font-bold ${
+                      c.estado === 'ACTIVO'
+                        ? 'text-green-600'
+                        : 'text-red-500'
+                    }`}
+                  >
+                    {c.estado}
+                  </p>
+                </div>
+              )
+            )}
           </div>
         </div>
 
@@ -315,21 +368,28 @@ export default function SistemaRutinas() {
               <thead>
                 <tr className="border-b text-left">
                   <th className="py-4">OK</th>
-
                   <th className="py-4">Rutina</th>
-
-                  <th className="py-4">Observación</th>
+                  <th className="py-4">
+                    Observación
+                  </th>
                 </tr>
               </thead>
 
               <tbody>
                 {tareas.map((tarea, index) => (
-                  <tr key={index} className="border-b">
+                  <tr
+                    key={index}
+                    className="border-b"
+                  >
                     <td className="py-4">
                       <input
                         type="checkbox"
-                        checked={tarea.realizada}
-                        onChange={() => toggleTarea(index)}
+                        checked={
+                          tarea.realizada
+                        }
+                        onChange={() =>
+                          toggleTarea(index)
+                        }
                         className="w-5 h-5"
                       />
                     </td>
@@ -341,7 +401,9 @@ export default function SistemaRutinas() {
                     <td className="py-4">
                       <input
                         type="text"
-                        value={tarea.observacion}
+                        value={
+                          tarea.observacion
+                        }
                         onChange={(e) =>
                           actualizarObservacion(
                             index,
@@ -366,12 +428,13 @@ export default function SistemaRutinas() {
               Historial
             </h2>
 
-            {/* BUSCADOR */}
             <input
               type="text"
               placeholder="Buscar colaborador, rutina, fecha..."
               value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
+              onChange={(e) =>
+                setBusqueda(e.target.value)
+              }
               className="border rounded-xl p-3 w-full md:w-96"
             />
           </div>
@@ -380,36 +443,57 @@ export default function SistemaRutinas() {
             <table className="w-full">
               <thead>
                 <tr className="border-b text-left">
-                  <th className="py-4">Colaborador</th>
+                  <th className="py-4">
+                    Colaborador
+                  </th>
 
-                  <th className="py-4">Rutina</th>
+                  <th className="py-4">
+                    Rutina
+                  </th>
 
-                  <th className="py-4">Observación</th>
+                  <th className="py-4">
+                    Observación
+                  </th>
 
-                  <th className="py-4">Fecha</th>
+                  <th className="py-4">
+                    Fecha
+                  </th>
 
-                  <th className="py-4">Hora</th>
+                  <th className="py-4">
+                    Hora
+                  </th>
                 </tr>
               </thead>
 
               <tbody>
-                {historialFiltrado.map((h, index) => (
-                  <tr key={index} className="border-b">
-                    <td className="py-4">
-                      {h.colaborador}
-                    </td>
+                {historialFiltrado.map(
+                  (h, index) => (
+                    <tr
+                      key={index}
+                      className="border-b"
+                    >
+                      <td className="py-4">
+                        {h.colaborador}
+                      </td>
 
-                    <td className="py-4">{h.rutina}</td>
+                      <td className="py-4">
+                        {h.rutina}
+                      </td>
 
-                    <td className="py-4">
-                      {h.observacion}
-                    </td>
+                      <td className="py-4">
+                        {h.observacion}
+                      </td>
 
-                    <td className="py-4">{h.fecha}</td>
+                      <td className="py-4">
+                        {h.fecha}
+                      </td>
 
-                    <td className="py-4">{h.hora}</td>
-                  </tr>
-                ))}
+                      <td className="py-4">
+                        {h.hora}
+                      </td>
+                    </tr>
+                  )
+                )}
               </tbody>
             </table>
           </div>
