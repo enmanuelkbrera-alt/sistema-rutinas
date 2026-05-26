@@ -30,6 +30,7 @@ export default function SistemaRutinas() {
   ];
 
   const [colaborador, setColaborador] = useState('');
+  const [busqueda, setBusqueda] = useState('');
 
   const [historial, setHistorial] = useState<any[]>([]);
 
@@ -40,24 +41,23 @@ export default function SistemaRutinas() {
       observacion: '',
     }))
   );
+
   const cargarHistorial = async () => {
     const { data, error } = await supabase
       .from('rutinas')
       .select('*')
       .order('id', { ascending: false });
-  
+
     if (error) {
       console.error(error);
       return;
     }
-  
+
     setHistorial(data || []);
   };
- 
 
-useEffect(() => {
+  useEffect(() => {
     cargarHistorial();
-  
   }, []);
 
   const toggleTarea = (index: number) => {
@@ -91,14 +91,14 @@ useEffect(() => {
       alert('Selecciona un colaborador');
       return;
     }
-  
+
     const realizadas = tareas.filter((t) => t.realizada);
-  
+
     if (realizadas.length === 0) {
       alert('Selecciona al menos una rutina');
       return;
     }
-  
+
     const nuevosRegistros = realizadas.map((t) => ({
       colaborador,
       rutina: t.nombre,
@@ -106,58 +106,77 @@ useEffect(() => {
       fecha: new Date().toLocaleDateString(),
       hora: new Date().toLocaleTimeString(),
     }));
-  
+
     const { error } = await supabase
       .from('rutinas')
       .insert(nuevosRegistros);
-  
+
     if (error) {
       console.error(error);
       alert('Error guardando');
       return;
     }
-  
+
     await cargarHistorial();
-  
+
     limpiarFormulario();
-  
+
     alert('Rutinas guardadas');
   };
 
-  
-const hoy = new Date().toLocaleDateString();
+  const hoy = new Date().toLocaleDateString();
 
-const registrosHoy = historial.filter(
-  (h) => h.fecha === hoy
-);
+  const registrosHoy = historial.filter(
+    (h) => h.fecha === hoy
+  );
 
-const totalRutinasHoy = new Set(
-  registrosHoy.map((h) => h.rutina)
-).size;
+  // Rutinas únicas del día
+  const totalRutinasHoy = new Set(
+    registrosHoy.map((h) => h.rutina)
+  ).size;
 
-const colaboradoresActivos = new Set(
-  registrosHoy.map((h) => h.colaborador)
-).size;
+  // Colaboradores que hicieron algo hoy
+  const colaboradoresActivos = new Set(
+    registrosHoy.map((h) => h.colaborador)
+  ).size;
 
-const rutinasColaborador = registrosHoy.filter(
-  (h) => h.colaborador === colaborador
-).length;
+  // Rutinas del colaborador seleccionado hoy
+  const rutinasColaborador = new Set(
+    registrosHoy
+      .filter((h) => h.colaborador === colaborador)
+      .map((h) => h.rutina)
+  ).size;
 
-const sinActividad = colaboradores.length - colaboradoresActivos;
+  const sinActividad = colaboradores.length - colaboradoresActivos;
 
-const estadoColaboradores = useMemo(() => {
-  return colaboradores.map((c) => {
-    const registros = registrosHoy.filter(
-      (h) => h.colaborador === c
+  const estadoColaboradores = useMemo(() => {
+    return colaboradores.map((c) => {
+      const registros = registrosHoy.filter(
+        (h) => h.colaborador === c
+      );
+
+      return {
+        nombre: c,
+        total: new Set(registros.map((h) => h.rutina)).size,
+        estado:
+          registros.length > 0
+            ? 'ACTIVO'
+            : 'SIN ACTIVIDAD',
+      };
+    });
+  }, [registrosHoy]);
+
+  // BUSCADOR
+  const historialFiltrado = historial.filter((h) => {
+    const texto = busqueda.toLowerCase();
+
+    return (
+      h.colaborador?.toLowerCase().includes(texto) ||
+      h.rutina?.toLowerCase().includes(texto) ||
+      h.observacion?.toLowerCase().includes(texto) ||
+      h.fecha?.toLowerCase().includes(texto)
     );
-
-    return {
-      nombre: c,
-      total: registros.length,
-      estado: registros.length > 0 ? 'ACTIVO' : 'SIN ACTIVIDAD',
-    };
   });
-}, [registrosHoy]);
 
   return (
     <div className="min-h-screen bg-gray-100 p-8">
@@ -165,9 +184,13 @@ const estadoColaboradores = useMemo(() => {
         <div className="bg-white rounded-3xl shadow-xl p-8 mb-8">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
             <div>
-              <h1 className="text-4xl font-bold mb-2">Sistema de Rutinas</h1>
+              <h1 className="text-4xl font-bold mb-2">
+                Sistema de Rutinas
+              </h1>
 
-              <p className="text-gray-500">Control operativo diario</p>
+              <p className="text-gray-500">
+                Control operativo diario
+              </p>
             </div>
 
             <div className="w-full md:w-80">
@@ -192,36 +215,90 @@ const estadoColaboradores = useMemo(() => {
           </div>
         </div>
 
+        {/* CONTADORES */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-2xl shadow p-6">
-            <h2 className="text-gray-500 mb-2">Rutinas hoy</h2>
+            <h2 className="text-gray-500 mb-2">
+              Rutinas hoy
+            </h2>
 
-            <p className="text-5xl font-bold">{totalRutinasHoy}</p>
+            <p className="text-5xl font-bold">
+              {totalRutinasHoy}
+            </p>
           </div>
 
           <div className="bg-white rounded-2xl shadow p-6">
-            <h2 className="text-gray-500 mb-2">Colaboradores activos</h2>
+            <h2 className="text-gray-500 mb-2">
+              Colaboradores activos
+            </h2>
 
-            <p className="text-5xl font-bold">{colaboradoresActivos}</p>
+            <p className="text-5xl font-bold">
+              {colaboradoresActivos}
+            </p>
           </div>
 
           <div className="bg-white rounded-2xl shadow p-6">
-            <h2 className="text-gray-500 mb-2">Rutinas colaborador</h2>
+            <h2 className="text-gray-500 mb-2">
+              Rutinas colaborador
+            </h2>
 
-            <p className="text-5xl font-bold">{rutinasColaborador}</p>
+            <p className="text-5xl font-bold">
+              {rutinasColaborador}
+            </p>
           </div>
 
           <div className="bg-white rounded-2xl shadow p-6">
-            <h2 className="text-gray-500 mb-2">Sin actividad</h2>
+            <h2 className="text-gray-500 mb-2">
+              Sin actividad
+            </h2>
 
-            <p className="text-5xl font-bold">{sinActividad}</p>
+            <p className="text-5xl font-bold">
+              {sinActividad}
+            </p>
           </div>
         </div>
 
+        {/* ESTADO COLABORADORES */}
+        <div className="bg-white rounded-3xl shadow-xl p-8 mb-8">
+          <h2 className="text-2xl font-bold mb-6">
+            Estado de colaboradores
+          </h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {estadoColaboradores.map((c, index) => (
+              <div
+                key={index}
+                className="border rounded-2xl p-4"
+              >
+                <h3 className="font-bold text-lg">
+                  {c.nombre}
+                </h3>
+
+                <p className="text-gray-500">
+                  Rutinas: {c.total}
+                </p>
+
+                <p
+                  className={`font-bold ${
+                    c.estado === 'ACTIVO'
+                      ? 'text-green-600'
+                      : 'text-red-500'
+                  }`}
+                >
+                  {c.estado}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* REGISTRO */}
         <div className="bg-white rounded-3xl shadow-xl p-8 mb-8">
           <div className="flex justify-between items-center mb-8">
             <div>
-              <h2 className="text-2xl font-bold">Registro Diario</h2>
+              <h2 className="text-2xl font-bold">
+                Registro Diario
+              </h2>
             </div>
 
             <button
@@ -256,14 +333,19 @@ const estadoColaboradores = useMemo(() => {
                       />
                     </td>
 
-                    <td className="py-4 font-medium">{tarea.nombre}</td>
+                    <td className="py-4 font-medium">
+                      {tarea.nombre}
+                    </td>
 
                     <td className="py-4">
                       <input
                         type="text"
                         value={tarea.observacion}
                         onChange={(e) =>
-                          actualizarObservacion(index, e.target.value)
+                          actualizarObservacion(
+                            index,
+                            e.target.value
+                          )
                         }
                         placeholder="Observación"
                         className="border rounded-lg p-2 w-full"
@@ -276,40 +358,58 @@ const estadoColaboradores = useMemo(() => {
           </div>
         </div>
 
+        {/* HISTORIAL */}
         <div className="bg-white rounded-3xl shadow-xl p-8">
-          <h2 className="text-2xl font-bold mb-6">Historial</h2>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+            <h2 className="text-2xl font-bold">
+              Historial
+            </h2>
+
+            {/* BUSCADOR */}
+            <input
+              type="text"
+              placeholder="Buscar colaborador, rutina, fecha..."
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              className="border rounded-xl p-3 w-full md:w-96"
+            />
+          </div>
 
           <div className="max-h-[500px] overflow-auto">
             <table className="w-full">
-            <thead>
-  <tr className="border-b text-left">
-    <th className="py-4">Colaborador</th>
+              <thead>
+                <tr className="border-b text-left">
+                  <th className="py-4">Colaborador</th>
 
-    <th className="py-4">Rutina</th>
+                  <th className="py-4">Rutina</th>
 
-    <th className="py-4">Observación</th>
+                  <th className="py-4">Observación</th>
 
-    <th className="py-4">Fecha</th>
+                  <th className="py-4">Fecha</th>
 
-    <th className="py-4">Hora</th>
-  </tr>
-</thead>
+                  <th className="py-4">Hora</th>
+                </tr>
+              </thead>
 
-<tbody>
-  {historial.map((h, index) => (
-    <tr key={index} className="border-b">
-      <td className="py-4">{h.colaborador}</td>
+              <tbody>
+                {historialFiltrado.map((h, index) => (
+                  <tr key={index} className="border-b">
+                    <td className="py-4">
+                      {h.colaborador}
+                    </td>
 
-      <td className="py-4">{h.rutina}</td>
+                    <td className="py-4">{h.rutina}</td>
 
-      <td className="py-4">{h.observacion}</td>
+                    <td className="py-4">
+                      {h.observacion}
+                    </td>
 
-      <td className="py-4">{h.fecha}</td>
+                    <td className="py-4">{h.fecha}</td>
 
-      <td className="py-4">{h.hora}</td>
-    </tr>
-  ))}
-</tbody>
+                    <td className="py-4">{h.hora}</td>
+                  </tr>
+                ))}
+              </tbody>
             </table>
           </div>
         </div>
