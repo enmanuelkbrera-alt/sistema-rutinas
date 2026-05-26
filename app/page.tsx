@@ -29,6 +29,8 @@ export default function SistemaRutinas() {
     'Revisar los lockers',
   ];
 
+  const [pestana, setPestana] = useState('historial');
+
   const [colaborador, setColaborador] = useState('');
   const [busqueda, setBusqueda] = useState('');
 
@@ -358,60 +360,203 @@ export default function SistemaRutinas() {
           </div>
         </div>
 
-        {/* HISTORIAL */}
+        {/* HISTORIAL Y SEGUIMIENTO */}
         <div className="bg-white rounded-3xl shadow-xl p-8">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-            <h2 className="text-2xl font-bold">
+          <div className="flex gap-4 mb-8">
+            <button
+              onClick={() => setPestana('historial')}
+              className={`px-6 py-3 rounded-xl font-medium ${
+                pestana === 'historial'
+                  ? 'bg-black text-white'
+                  : 'bg-gray-200'
+              }`}
+            >
               Historial
-            </h2>
+            </button>
 
-            {/* BUSCADOR */}
-            <input
-              type="text"
-              placeholder="Buscar colaborador, rutina, fecha..."
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              className="border rounded-xl p-3 w-full md:w-96"
-            />
+            <button
+              onClick={() => setPestana('seguimiento')}
+              className={`px-6 py-3 rounded-xl font-medium ${
+                pestana === 'seguimiento'
+                  ? 'bg-black text-white'
+                  : 'bg-gray-200'
+              }`}
+            >
+              Seguimiento Compras
+            </button>
           </div>
 
-          <div className="max-h-[500px] overflow-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b text-left">
-                  <th className="py-4">Colaborador</th>
+          {pestana === 'historial' && (
+            <>
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+                <h2 className="text-2xl font-bold">
+                  Historial
+                </h2>
 
-                  <th className="py-4">Rutina</th>
+                <input
+                  type="text"
+                  placeholder="Buscar colaborador, rutina, fecha..."
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
+                  className="border rounded-xl p-3 w-full md:w-96"
+                />
+              </div>
 
-                  <th className="py-4">Observación</th>
+              <div className="max-h-[500px] overflow-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b text-left">
+                      <th className="py-4">Colaborador</th>
 
-                  <th className="py-4">Fecha</th>
+                      <th className="py-4">Rutina</th>
 
-                  <th className="py-4">Hora</th>
-                </tr>
-              </thead>
+                      <th className="py-4">Observación</th>
 
-              <tbody>
-                {historialFiltrado.map((h, index) => (
-                  <tr key={index} className="border-b">
-                    <td className="py-4">
-                      {h.colaborador}
-                    </td>
+                      <th className="py-4">Fecha</th>
 
-                    <td className="py-4">{h.rutina}</td>
+                      <th className="py-4">Hora</th>
+                    </tr>
+                  </thead>
 
-                    <td className="py-4">
-                      {h.observacion}
-                    </td>
+                  <tbody>
+                    {historialFiltrado.map((h, index) => (
+                      <tr key={index} className="border-b">
+                        <td className="py-4">
+                          {h.colaborador}
+                        </td>
 
-                    <td className="py-4">{h.fecha}</td>
+                        <td className="py-4">{h.rutina}</td>
 
-                    <td className="py-4">{h.hora}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                        <td className="py-4">
+                          {h.observacion}
+                        </td>
+
+                        <td className="py-4">{h.fecha}</td>
+
+                        <td className="py-4">{h.hora}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
+          {pestana === 'seguimiento' && (
+            <>
+              <h2 className="text-2xl font-bold mb-6">
+                Seguimiento Compras
+              </h2>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div className="bg-gray-100 rounded-2xl p-6">
+                  <h3 className="text-gray-500 mb-2">
+                    Sin llamar
+                  </h3>
+
+                  <p className="text-5xl font-bold">
+                    {
+                      historial.filter(
+                        (h) =>
+                          !h.observacion ||
+                          h.observacion.trim() === ''
+                      ).length
+                    }
+                  </p>
+                </div>
+
+                <div className="bg-gray-100 rounded-2xl p-6">
+                  <h3 className="text-gray-500 mb-2">
+                    Llamadas
+                  </h3>
+
+                  <p className="text-5xl font-bold">
+                    {
+                      historial.filter(
+                        (h) =>
+                          h.observacion &&
+                          h.observacion.trim() !== ''
+                      ).length
+                    }
+                  </p>
+                </div>
+
+                <div className="bg-gray-100 rounded-2xl p-6">
+                  <h3 className="text-gray-500 mb-2">
+                    Pte mercancía
+                  </h3>
+
+                  <p className="text-5xl font-bold">
+                    {
+                      historial.filter((h) =>
+                        h.observacion
+                          ?.toLowerCase()
+                          .includes('pte mercancía')
+                      ).length
+                    }
+                  </p>
+                </div>
+
+                <div className="bg-gray-100 rounded-2xl p-6">
+                  <h3 className="text-gray-500 mb-2">
+                    Prioritarias
+                  </h3>
+
+                  <p className="text-5xl font-bold text-red-500">
+                    {
+                      historial.filter(
+                        (h) =>
+                          h.observacion
+                            ?.toLowerCase()
+                            .includes(
+                              'transporte santiago'
+                            ) &&
+                          h.observacion
+                            ?.toLowerCase()
+                            .includes(
+                              'pte mercancía'
+                            )
+                      ).length
+                    }
+                  </p>
+                </div>
+              </div>
+
+              <div className="max-h-[500px] overflow-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b text-left">
+                      <th className="py-4">Rutina</th>
+
+                      <th className="py-4">
+                        Observación
+                      </th>
+
+                      <th className="py-4">Fecha</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {historial.map((h, index) => (
+                      <tr key={index} className="border-b">
+                        <td className="py-4">
+                          {h.rutina}
+                        </td>
+
+                        <td className="py-4">
+                          {h.observacion}
+                        </td>
+
+                        <td className="py-4">
+                          {h.fecha}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
