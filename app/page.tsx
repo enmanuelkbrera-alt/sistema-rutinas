@@ -2,6 +2,7 @@
 
 import { supabase } from './lib/supabase';
 import { useEffect, useMemo, useState } from 'react';
+import * as XLSX from 'xlsx';
 
 export default function SistemaRutinas() {
   const colaboradores = [
@@ -31,8 +32,13 @@ export default function SistemaRutinas() {
     'Revisar los lockers',
   ];
 
+  const [pestana, setPestana] = useState('historial');
+
   const [colaborador, setColaborador] = useState('');
+
   const [busqueda, setBusqueda] = useState('');
+
+  const [compras, setCompras] = useState<any[]>([]);
 
   const [historial, setHistorial] = useState<any[]>([]);
 
@@ -44,21 +50,13 @@ export default function SistemaRutinas() {
     }))
   );
 
-  const obtenerFecha = () => {
-    const fecha = new Date();
-
-    return fecha.toISOString().split('T')[0];
-  };
-
-  const obtenerHora = () => {
-    return new Date().toLocaleTimeString();
-  };
-
   const cargarHistorial = async () => {
     const { data, error } = await supabase
       .from('rutinas')
       .select('*')
-      .order('id', { ascending: false });
+      .order('id', {
+        ascending: false,
+      });
 
     if (error) {
       console.error(error);
@@ -72,6 +70,70 @@ export default function SistemaRutinas() {
     cargarHistorial();
   }, []);
 
+  const importarExcel = (e: any) => {
+    const file = e.target.files[0];
+
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = (evt: any) => {
+      const data = new Uint8Array(evt.target.result);
+
+      const workbook = XLSX.read(data, {
+        type: 'array',
+      });
+
+      const sheetName = workbook.SheetNames[0];
+
+      const worksheet = workbook.Sheets[sheetName];
+
+      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+      const depurado = jsonData.map((item: any) => {
+        const texto = JSON.stringify(item || {}).toLowerCase();
+
+        const tieneTransporteSantiago = texto.includes('transporte santiago');
+
+        const tieneComentario =
+          texto.includes('coment') ||
+          texto.includes('llamad') ||
+          texto.includes('contact');
+
+        const tienePendiente =
+          texto.includes('pendiente') ||
+          texto.includes('reserva') ||
+          texto.includes('stock') ||
+          texto.includes('pte mercancía') ||
+          texto.includes('pte mercancia');
+
+        const esPaqueteria =
+          texto.includes('paqueteria') || texto.includes('paquetería');
+
+        return {
+          ...item,
+
+          tipoEntrega: tieneTransporteSantiago
+            ? 'RETIRO EN TIENDA'
+            : 'TRANSPORTE PAGO',
+
+          comentario: tieneComentario,
+
+          pendiente: tienePendiente,
+
+          prioridad:
+            !tieneTransporteSantiago && tienePendiente ? 'ALTA' : 'NORMAL',
+
+          paqueteria: esPaqueteria,
+        };
+      });
+
+      setCompras(depurado);
+    };
+
+    reader.readAsArrayBuffer(file);
+  };
+
   const toggleTarea = (index: number) => {
     const copia = [...tareas];
 
@@ -80,10 +142,7 @@ export default function SistemaRutinas() {
     setTareas(copia);
   };
 
-  const actualizarObservacion = (
-    index: number,
-    valor: string
-  ) => {
+  const actualizarObservacion = (index: number, valor: string) => {
     const copia = [...tareas];
 
     copia[index].observacion = valor;
@@ -107,32 +166,28 @@ export default function SistemaRutinas() {
       return;
     }
 
-    const realizadas = tareas.filter(
-      (t) => t.realizada
-    );
+    const realizadas = tareas.filter((t) => t.realizada);
 
     if (realizadas.length === 0) {
       alert('Selecciona al menos una rutina');
       return;
     }
 
-    const nuevosRegistros = realizadas.map(
-      (t) => ({
-        colaborador,
-        rutina: t.nombre,
-        observacion: t.observacion || '',
-        fecha: obtenerFecha(),
-        hora: obtenerHora(),
-      })
-    );
+    const nuevosRegistros = realizadas.map((t) => ({
+      colaborador,
+      rutina: t.nombre,
+      observacion: t.observacion || '',
+      fecha: new Date().toLocaleDateString(),
+      hora: new Date().toLocaleTimeString(),
+    }));
 
-    const { error } = await supabase
-      .from('rutinas')
-      .insert(nuevosRegistros);
+    const { error } = await supabase.from('rutinas').insert(nuevosRegistros);
 
     if (error) {
       console.error(error);
-      alert('Error guardando');
+
+      alert(JSON.stringify(error));
+
       return;
     }
 
@@ -143,99 +198,78 @@ export default function SistemaRutinas() {
     alert('Rutinas guardadas');
   };
 
-  const hoy = obtenerFecha();
+  const hoy = new Date().toLocaleDateString();
 
-  const registrosHoy = historial.filter(
-    (h) => h.fecha === hoy
-  );
+  const registrosHoy = historial.filter((h) => h.fecha === hoy);
 
-  const totalRutinasHoy = new Set(
-    registrosHoy.map((h) => h.rutina)
+  const totalRutinasHoy = new Set(registrosHoy.map((h) => h.rutina)).size;
+
+  const colaboradoresActivos = new Set(registrosHoy.map((h) => h.colaborador))
+    .size;
+
+  const rutinasColaborador = new Set(
+    registrosHoy
+      .filter((h) => h.colaborador === colaborador)
+      .map((h) => h.rutina)
   ).size;
 
-  const colaboradoresActivos =
-    new Set(
-      registrosHoy.map(
-        (h) => h.colaborador
-      )
-    ).size;
+  const sinActividad = colaboradores.length - colaboradoresActivos;
 
-  const rutinasColaborador =
-    new Set(
-      registrosHoy
-        .filter(
-          (h) =>
-            h.colaborador === colaborador
-        )
-        .map((h) => h.rutina)
-    ).size;
+  const estadoColaboradores = useMemo(() => {
+    return colaboradores.map((c) => {
+      const registros = registrosHoy.filter((h) => h.colaborador === c);
 
-  const sinActividad =
-    colaboradores.length -
-    colaboradoresActivos;
+      return {
+        nombre: c,
 
-  const estadoColaboradores =
-    useMemo(() => {
-      return colaboradores.map((c) => {
-        const registros =
-          registrosHoy.filter(
-            (h) =>
-              h.colaborador === c
-          );
+        total: new Set(registros.map((h) => h.rutina)).size,
 
-        return {
-          nombre: c,
-          total: new Set(
-            registros.map(
-              (h) => h.rutina
-            )
-          ).size,
-
-          estado:
-            registros.length > 0
-              ? 'ACTIVO'
-              : 'SIN ACTIVIDAD',
-        };
-      });
-    }, [registrosHoy]);
-
-  const historialFiltrado =
-    historial.filter((h) => {
-      const texto =
-        busqueda.toLowerCase();
-
-      return (
-        h.colaborador
-          ?.toLowerCase()
-          .includes(texto) ||
-        h.rutina
-          ?.toLowerCase()
-          .includes(texto) ||
-        h.observacion
-          ?.toLowerCase()
-          .includes(texto) ||
-        h.fecha
-          ?.toLowerCase()
-          .includes(texto) ||
-        h.hora
-          ?.toLowerCase()
-          .includes(texto)
-      );
+        estado: registros.length > 0 ? 'ACTIVO' : 'SIN ACTIVIDAD',
+      };
     });
+  }, [registrosHoy]);
+
+  const historialFiltrado = historial.filter((h) => {
+    const texto = busqueda.toLowerCase();
+
+    return (
+      (h.colaborador || '').toLowerCase().includes(texto) ||
+      (h.rutina || '').toLowerCase().includes(texto) ||
+      (h.observacion || '').toLowerCase().includes(texto) ||
+      (h.fecha || '').toLowerCase().includes(texto)
+    );
+  });
+
+  const totalCompras = compras.length;
+
+  const comprasComentadas = compras.filter((c) => c.comentario).length;
+
+  const comprasSinComentario = compras.filter((c) => !c.comentario).length;
+
+  const pendientes = compras.filter((c) => c.pendiente).length;
+
+  const prioridadAlta = compras.filter((c) => c.prioridad === 'ALTA').length;
+
+  const paqueterias = compras.filter((c) => c.paqueteria).length;
+
+  const transportePago = compras.filter(
+    (c) => c.tipoEntrega === 'TRANSPORTE PAGO'
+  ).length;
+
+  const retiroTienda = compras.filter(
+    (c) => c.tipoEntrega === 'RETIRO EN TIENDA'
+  ).length;
 
   return (
     <div className="min-h-screen bg-gray-100 p-8">
       <div className="max-w-7xl mx-auto">
+        {/* HEADER */}
         <div className="bg-white rounded-3xl shadow-xl p-8 mb-8">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
             <div>
-              <h1 className="text-4xl font-bold mb-2">
-                Sistema de Rutinas
-              </h1>
+              <h1 className="text-4xl font-bold mb-2">Sistema de Rutinas</h1>
 
-              <p className="text-gray-500">
-                Control operativo diario
-              </p>
+              <p className="text-gray-500">Control operativo diario</p>
             </div>
 
             <div className="w-full md:w-80">
@@ -245,20 +279,13 @@ export default function SistemaRutinas() {
 
               <select
                 value={colaborador}
-                onChange={(e) =>
-                  setColaborador(e.target.value)
-                }
+                onChange={(e) => setColaborador(e.target.value)}
                 className="w-full border rounded-xl p-3"
               >
-                <option value="">
-                  Seleccionar
-                </option>
+                <option value="">Seleccionar</option>
 
                 {colaboradores.map((c) => (
-                  <option
-                    key={c}
-                    value={c}
-                  >
+                  <option key={c} value={c}>
                     {c}
                   </option>
                 ))}
@@ -270,90 +297,135 @@ export default function SistemaRutinas() {
         {/* CONTADORES */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-2xl shadow p-6">
-            <h2 className="text-gray-500 mb-2">
-              Rutinas hoy
-            </h2>
+            <h2 className="text-gray-500 mb-2">Rutinas hoy</h2>
 
-            <p className="text-5xl font-bold">
-              {totalRutinasHoy}
-            </p>
+            <p className="text-5xl font-bold">{totalRutinasHoy}</p>
           </div>
 
           <div className="bg-white rounded-2xl shadow p-6">
-            <h2 className="text-gray-500 mb-2">
-              Colaboradores activos
-            </h2>
+            <h2 className="text-gray-500 mb-2">Colaboradores activos</h2>
 
-            <p className="text-5xl font-bold">
-              {colaboradoresActivos}
-            </p>
+            <p className="text-5xl font-bold">{colaboradoresActivos}</p>
           </div>
 
           <div className="bg-white rounded-2xl shadow p-6">
-            <h2 className="text-gray-500 mb-2">
-              Rutinas colaborador
-            </h2>
+            <h2 className="text-gray-500 mb-2">Rutinas colaborador</h2>
 
-            <p className="text-5xl font-bold">
-              {rutinasColaborador}
-            </p>
+            <p className="text-5xl font-bold">{rutinasColaborador}</p>
           </div>
 
           <div className="bg-white rounded-2xl shadow p-6">
-            <h2 className="text-gray-500 mb-2">
-              Sin actividad
-            </h2>
+            <h2 className="text-gray-500 mb-2">Sin actividad</h2>
 
-            <p className="text-5xl font-bold">
-              {sinActividad}
-            </p>
+            <p className="text-5xl font-bold">{sinActividad}</p>
           </div>
         </div>
 
         {/* ESTADO */}
         <div className="bg-white rounded-3xl shadow-xl p-8 mb-8">
-          <h2 className="text-2xl font-bold mb-6">
-            Estado de colaboradores
-          </h2>
+          <h2 className="text-2xl font-bold mb-6">Estado de colaboradores</h2>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {estadoColaboradores.map(
-              (c, index) => (
-                <div
-                  key={index}
-                  className="border rounded-2xl p-4"
+            {estadoColaboradores.map((c, index) => (
+              <div key={index} className="border rounded-2xl p-4">
+                <h3 className="font-bold text-lg">{c.nombre}</h3>
+
+                <p className="text-gray-500">Rutinas: {c.total}</p>
+
+                <p
+                  className={`font-bold ${
+                    c.estado === 'ACTIVO' ? 'text-green-600' : 'text-red-500'
+                  }`}
                 >
-                  <h3 className="font-bold text-lg">
-                    {c.nombre}
-                  </h3>
+                  {c.estado}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
 
-                  <p className="text-gray-500">
-                    Rutinas: {c.total}
-                  </p>
+        {/* CONTROL COMPRAS */}
+        <div className="bg-white rounded-3xl shadow-xl p-8 mb-8">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+            <div>
+              <h2 className="text-2xl font-bold">Control de Compras</h2>
 
-                  <p
-                    className={`font-bold ${
-                      c.estado === 'ACTIVO'
-                        ? 'text-green-600'
-                        : 'text-red-500'
-                    }`}
-                  >
-                    {c.estado}
-                  </p>
-                </div>
-              )
-            )}
+              <p className="text-gray-500 mt-1">
+                Importa el Excel para analizar compras y pendientes.
+              </p>
+            </div>
+
+            <input
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={importarExcel}
+              className="border p-3 rounded-xl"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="border rounded-2xl p-4">
+              <p className="text-gray-500">Total compras</p>
+
+              <p className="text-4xl font-bold">{totalCompras}</p>
+            </div>
+
+            <div className="border rounded-2xl p-4">
+              <p className="text-gray-500">Sin comentario</p>
+
+              <p className="text-4xl font-bold text-red-500">
+                {comprasSinComentario}
+              </p>
+            </div>
+
+            <div className="border rounded-2xl p-4">
+              <p className="text-gray-500">Comentadas</p>
+
+              <p className="text-4xl font-bold text-green-600">
+                {comprasComentadas}
+              </p>
+            </div>
+
+            <div className="border rounded-2xl p-4">
+              <p className="text-gray-500">Prioridad alta</p>
+
+              <p className="text-4xl font-bold text-orange-500">
+                {prioridadAlta}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="border rounded-2xl p-4">
+              <p className="text-gray-500">Mercancía pendiente</p>
+
+              <p className="text-3xl font-bold">{pendientes}</p>
+            </div>
+
+            <div className="border rounded-2xl p-4">
+              <p className="text-gray-500">Transporte pago</p>
+
+              <p className="text-3xl font-bold">{transportePago}</p>
+            </div>
+
+            <div className="border rounded-2xl p-4">
+              <p className="text-gray-500">Retiro en tienda</p>
+
+              <p className="text-3xl font-bold">{retiroTienda}</p>
+            </div>
+
+            <div className="border rounded-2xl p-4">
+              <p className="text-gray-500">Paqueterías</p>
+
+              <p className="text-3xl font-bold">{paqueterias}</p>
+            </div>
           </div>
         </div>
 
         {/* REGISTRO */}
         <div className="bg-white rounded-3xl shadow-xl p-8 mb-8">
           <div className="flex justify-between items-center mb-8">
-            <div>
-              <h2 className="text-2xl font-bold">
-                Registro Diario
-              </h2>
-            </div>
+            <h2 className="text-2xl font-bold">Registro Diario</h2>
 
             <button
               onClick={guardarRutinas}
@@ -368,47 +440,33 @@ export default function SistemaRutinas() {
               <thead>
                 <tr className="border-b text-left">
                   <th className="py-4">OK</th>
+
                   <th className="py-4">Rutina</th>
-                  <th className="py-4">
-                    Observación
-                  </th>
+
+                  <th className="py-4">Observación</th>
                 </tr>
               </thead>
 
               <tbody>
                 {tareas.map((tarea, index) => (
-                  <tr
-                    key={index}
-                    className="border-b"
-                  >
+                  <tr key={index} className="border-b">
                     <td className="py-4">
                       <input
                         type="checkbox"
-                        checked={
-                          tarea.realizada
-                        }
-                        onChange={() =>
-                          toggleTarea(index)
-                        }
+                        checked={tarea.realizada}
+                        onChange={() => toggleTarea(index)}
                         className="w-5 h-5"
                       />
                     </td>
 
-                    <td className="py-4 font-medium">
-                      {tarea.nombre}
-                    </td>
+                    <td className="py-4 font-medium">{tarea.nombre}</td>
 
                     <td className="py-4">
                       <input
                         type="text"
-                        value={
-                          tarea.observacion
-                        }
+                        value={tarea.observacion}
                         onChange={(e) =>
-                          actualizarObservacion(
-                            index,
-                            e.target.value
-                          )
+                          actualizarObservacion(index, e.target.value)
                         }
                         placeholder="Observación"
                         className="border rounded-lg p-2 w-full"
@@ -421,82 +479,150 @@ export default function SistemaRutinas() {
           </div>
         </div>
 
-        {/* HISTORIAL */}
+        {/* HISTORIAL / SEGUIMIENTO */}
         <div className="bg-white rounded-3xl shadow-xl p-8">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-            <h2 className="text-2xl font-bold">
+          <div className="flex gap-4 mb-8">
+            <button
+              onClick={() => setPestana('historial')}
+              className={`px-6 py-3 rounded-xl font-medium ${
+                pestana === 'historial' ? 'bg-black text-white' : 'bg-gray-200'
+              }`}
+            >
               Historial
-            </h2>
+            </button>
 
-            <input
-              type="text"
-              placeholder="Buscar colaborador, rutina, fecha..."
-              value={busqueda}
-              onChange={(e) =>
-                setBusqueda(e.target.value)
-              }
-              className="border rounded-xl p-3 w-full md:w-96"
-            />
+            <button
+              onClick={() => setPestana('seguimiento')}
+              className={`px-6 py-3 rounded-xl font-medium ${
+                pestana === 'seguimiento'
+                  ? 'bg-black text-white'
+                  : 'bg-gray-200'
+              }`}
+            >
+              Seguimiento Compras
+            </button>
           </div>
 
-          <div className="max-h-[500px] overflow-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b text-left">
-                  <th className="py-4">
-                    Colaborador
-                  </th>
+          {/* HISTORIAL */}
+          {pestana === 'historial' && (
+            <>
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+                <h2 className="text-2xl font-bold">Historial</h2>
 
-                  <th className="py-4">
-                    Rutina
-                  </th>
+                <input
+                  type="text"
+                  placeholder="Buscar..."
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
+                  className="border rounded-xl p-3 w-full md:w-96"
+                />
+              </div>
 
-                  <th className="py-4">
-                    Observación
-                  </th>
+              <div className="max-h-[500px] overflow-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b text-left">
+                      <th className="py-4">Colaborador</th>
 
-                  <th className="py-4">
-                    Fecha
-                  </th>
+                      <th className="py-4">Rutina</th>
 
-                  <th className="py-4">
-                    Hora
-                  </th>
-                </tr>
-              </thead>
+                      <th className="py-4">Observación</th>
 
-              <tbody>
-                {historialFiltrado.map(
-                  (h, index) => (
-                    <tr
-                      key={index}
-                      className="border-b"
-                    >
-                      <td className="py-4">
-                        {h.colaborador}
-                      </td>
+                      <th className="py-4">Fecha</th>
 
-                      <td className="py-4">
-                        {h.rutina}
-                      </td>
-
-                      <td className="py-4">
-                        {h.observacion}
-                      </td>
-
-                      <td className="py-4">
-                        {h.fecha}
-                      </td>
-
-                      <td className="py-4">
-                        {h.hora}
-                      </td>
+                      <th className="py-4">Hora</th>
                     </tr>
-                  )
-                )}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+
+                  <tbody>
+                    {historialFiltrado.map((h, index) => (
+                      <tr key={index} className="border-b">
+                        <td className="py-4">{h.colaborador}</td>
+
+                        <td className="py-4">{h.rutina}</td>
+
+                        <td className="py-4">{h.observacion}</td>
+
+                        <td className="py-4">{h.fecha}</td>
+
+                        <td className="py-4">{h.hora}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
+          {/* SEGUIMIENTO */}
+          {pestana === 'seguimiento' && (
+            <>
+              <h2 className="text-2xl font-bold mb-6">Seguimiento Compras</h2>
+
+              <div className="max-h-[500px] overflow-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b text-left">
+                      <th className="py-4">Compra</th>
+
+                      <th className="py-4">Tipo</th>
+
+                      <th className="py-4">Comentario</th>
+
+                      <th className="py-4">Pendiente</th>
+
+                      <th className="py-4">Prioridad</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {compras.map((c, index) => (
+                      <tr
+                        key={index}
+                        className={`border-b ${
+                          c.prioridad === 'ALTA' ? 'bg-red-50' : ''
+                        }`}
+                      >
+                        <td className="py-4 text-sm">
+                          {c.Cliente || c.Nombre || c.Compra || 'Sin datos'}
+                        </td>
+
+                        <td className="py-4">{c.tipoEntrega}</td>
+
+                        <td className="py-4">
+                          {c.comentario ? (
+                            <span className="text-green-600 font-bold">SI</span>
+                          ) : (
+                            <span className="text-red-500 font-bold">NO</span>
+                          )}
+                        </td>
+
+                        <td className="py-4">
+                          {c.pendiente ? (
+                            <span className="text-orange-500 font-bold">
+                              PENDIENTE
+                            </span>
+                          ) : (
+                            <span className="text-green-600">COMPLETO</span>
+                          )}
+                        </td>
+
+                        <td
+                          className={`py-4 font-bold ${
+                            c.prioridad === 'ALTA'
+                              ? 'text-red-500'
+                              : 'text-green-600'
+                          }`}
+                        >
+                          {c.prioridad}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
